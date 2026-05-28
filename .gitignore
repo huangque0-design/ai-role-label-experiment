@@ -1,0 +1,13 @@
+node_modules/
+dist/
+.env
+.env.local
+.DS_Store
+.Rhistory
+data/.DS_Store
+data/sessions/*.json
+!data/sessions/.gitkeep
+data/participants/**
+!data/participants/.gitkeep
+data/results/**
+!data/results/.gitkeep
