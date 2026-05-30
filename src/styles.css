@@ -37,7 +37,7 @@ button,
 
 .app-shell {
   display: grid;
-  grid-template-columns: 280px minmax(0, 1fr);
+  grid-template-columns: 230px minmax(0, 1fr);
   min-height: 100vh;
 }
 
@@ -212,7 +212,7 @@ button,
 .form-grid {
   display: grid;
   gap: 16px;
-  max-width: 620px;
+  max-width: 760px;
   margin-top: 24px;
 }
 
@@ -220,6 +220,25 @@ button,
   display: grid;
   gap: 6px;
   font-weight: 600;
+}
+
+.form-section {
+  display: grid;
+  gap: 14px;
+  margin: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.form-section legend {
+  padding: 0 6px;
+  color: var(--blue-dark);
+  font-weight: 700;
+}
+
+.participant-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .text-input {
@@ -323,7 +342,7 @@ button,
 
 .task-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 360px;
+  grid-template-columns: minmax(0, 1fr) 420px;
   gap: 16px;
   align-items: start;
 }
@@ -390,6 +409,25 @@ button,
 .empty-ai {
   color: var(--weak);
   line-height: 1.6;
+}
+
+.instruction-panel {
+  max-width: 880px;
+}
+
+.instruction-content {
+  display: grid;
+  gap: 10px;
+  margin: 18px 0 24px;
+}
+
+.instruction-content p {
+  margin: 0;
+  line-height: 1.75;
+}
+
+.instruction-content p.indent {
+  padding-left: 2em;
 }
 
 .empty-ai {
@@ -563,6 +601,29 @@ button,
   font-style: normal;
 }
 
+.semantic-row {
+  grid-template-columns: 180px 1fr 180px;
+  gap: 20px;
+}
+
+.semantic-term {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  line-height: 1.45;
+}
+
+.semantic-left span {
+  color: var(--weak);
+}
+
+.semantic-right {
+  display: block;
+  color: var(--blue-dark);
+  text-align: right;
+}
+
 .likert {
   display: grid;
   grid-auto-flow: column;
@@ -662,12 +723,29 @@ button,
     padding: 16px;
   }
 
+  .participant-grid {
+    grid-template-columns: 1fr;
+  }
+
   .scale-item {
     grid-template-columns: 30px minmax(0, 1fr);
   }
 
   .scale-item em {
     grid-column: 2;
+  }
+
+  .semantic-row {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .semantic-term {
+    grid-template-columns: 30px minmax(0, 1fr);
+  }
+
+  .semantic-right {
+    padding-left: 30px;
   }
 
   .likert {

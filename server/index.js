@@ -353,22 +353,35 @@ function csvEscape(value) {
 }
 
 const taskHeaders = [
-  "participantId", "scheduleId", "savedAt", "questionId", "taskType", "roleId", "roleName", "accuracy",
+  "participantId", "gender", "age", "education", "major", "phone", "idCard", "scheduleId", "savedAt", "questionId", "taskType", "roleId", "roleName", "accuracy",
   "aiSuggestedAnswer", "initialAnswer", "finalAnswer", "finalTextAnswer", "initialRtMs", "finalRtMs",
   "adoptedAi", "finalCorrect", "overreliance", "appropriateRejection", "aiSource", "aiValidationStatus",
   "chatTurnCount", "chatTranscript"
 ];
 
 const chatHeaders = [
-  "participantId", "scheduleId", "savedAt", "questionId", "taskType", "roleId", "roleName", "accuracy",
+  "participantId", "gender", "age", "education", "major", "phone", "idCard", "scheduleId", "savedAt", "questionId", "taskType", "roleId", "roleName", "accuracy",
   "turnIndex", "userTimestamp", "userMessage", "aiTimestamp", "aiMessage", "model", "fallback", "validationStatus"
 ];
 
+function participantMeta(session) {
+  const info = session.participantInfo || {};
+  return {
+    participantId: session.participantId,
+    gender: info.gender || "",
+    age: info.age || "",
+    education: info.education || "",
+    major: info.major || "",
+    phone: info.phone || "",
+    idCard: info.idCard || "",
+    scheduleId: session.scheduleId,
+    savedAt: session.savedAt
+  };
+}
+
 function flattenTaskRows(session) {
   return Object.values(session.taskRecords || {}).map((record) => ({
-    participantId: session.participantId,
-    scheduleId: session.scheduleId,
-    savedAt: session.savedAt,
+    ...participantMeta(session),
     questionId: record.questionId,
     taskType: record.taskType || "choice",
     roleId: record.roleId,
@@ -404,9 +417,7 @@ function flattenChatRows(session) {
       const aiMessage = messages[index + 1];
       if (userMessage?.sender !== "user") continue;
       rows.push({
-        participantId: session.participantId,
-        scheduleId: session.scheduleId,
-        savedAt: session.savedAt,
+        ...participantMeta(session),
         questionId: record.questionId,
         taskType: record.taskType || "choice",
         roleId: record.roleId,
@@ -452,11 +463,7 @@ function bigFiveScoreColumns(scores = {}) {
 }
 
 function flattenQuestionnaireSheets(session) {
-  const meta = {
-    participantId: session.participantId,
-    scheduleId: session.scheduleId,
-    savedAt: session.savedAt
-  };
+  const meta = participantMeta(session);
 
   const preUsed = new Map();
   const preRow = { ...meta };
@@ -686,15 +693,9 @@ app.post("/api/save-session", async (req, res) => {
 app.get("/api/export", async (_req, res) => {
   const sessions = await loadSessions();
   const rows = sessions.flatMap(flattenSessionRows);
-  const headers = [
-    "participantId", "scheduleId", "savedAt", "questionId", "taskType", "roleId", "roleName", "accuracy",
-    "aiSuggestedAnswer", "initialAnswer", "finalAnswer", "finalTextAnswer", "initialRtMs", "finalRtMs",
-    "adoptedAi", "finalCorrect", "overreliance", "appropriateRejection", "aiSource", "aiValidationStatus",
-    "chatTurnCount", "chatTranscript"
-  ];
   res.setHeader("Content-Type", "text/csv; charset=utf-8");
   res.setHeader("Content-Disposition", "attachment; filename=\"experiment-results.csv\"");
-  res.send(`\uFEFF${toCsv(rows, headers)}`);
+  res.send(`\uFEFF${toCsv(rows, taskHeaders)}`);
 });
 
 app.use(express.static(path.join(rootDir, "dist")));

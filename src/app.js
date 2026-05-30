@@ -1,15 +1,17 @@
 import "./styles.css";
 import {
   bigFiveScoring,
+  experimentStartInstruction,
   postScaleOrder,
   questions,
   roles,
   scales,
-  schedules
+  schedules,
+  stageInstructions
 } from "./data.js";
 
 const storageKey = "ai-role-label-experiment-state";
-const stateVersion = 3;
+const stateVersion = 4;
 const app = document.querySelector("#app");
 
 let state = loadState() || initialState();
@@ -18,6 +20,14 @@ function initialState() {
   return {
     version: stateVersion,
     participantId: "",
+    participantInfo: {
+      gender: "",
+      age: "",
+      education: "",
+      major: "",
+      phone: "",
+      idCard: ""
+    },
     scheduleId: schedules[0].id,
     startedAt: null,
     currentStep: 0,
@@ -95,11 +105,20 @@ function randomAccuracyPair() {
 }
 
 function buildSteps(selectedSchedule) {
-  const steps = [{ type: "scale", scaleId: "preTrust", title: "开始问卷" }];
+  const steps = [
+    { type: "instruction", instructionId: "start", title: "实验开始前指导语" },
+    { type: "scale", scaleId: "preTrust", title: "开始问卷" }
+  ];
   const taskBlocks = [[1, 2, "E1"], [3, 4, "E2"], [5, 6, "E3"]];
 
   selectedSchedule.roleOrder.forEach((roleId, blockIndex) => {
     const accuracyPair = randomAccuracyPair();
+    steps.push({
+      type: "instruction",
+      instructionId: "stage",
+      roleId,
+      title: `${roles[roleId].name}指导语`
+    });
     taskBlocks[blockIndex].forEach((questionId, taskIndex) => {
       const question = questionById(questionId);
       const isChoice = question?.type !== "essay";
@@ -178,6 +197,40 @@ function allScaleAnswered(scale, responses = {}) {
   return scale.items.every((_, index) => responses[index + 1] != null);
 }
 
+const indentedInstructionParagraphs = new Set([
+  "首先，你需要填写一份基础信息问卷；",
+  "随后进入标签学习阶段，熟悉三种不同类型 AI 的角色设定；",
+  "依次与专家型 AI、陪伴型 AI、工具型 AI分别协作完成3个任务题；",
+  "每完成一类 AI 的任务后，需填写一份主观评价问卷；",
+  "全部任务结束后，完成一份大五人格量表；",
+  "专家型 AI：定位为专业领域权威顾问，核心特点是高专业性、强权威性、理性严谨，擅长提供专业精准的诊断建议。",
+  "陪伴型 AI：定位为友好协作伙伴，核心特点是亲和温暖、支持性强、注重情感回应，协作中更侧重鼓励与共情。",
+  "工具型 AI：定位为中性自动化工具，核心特点是客观中立、简洁高效、无情感倾向，仅提供标准化的参考建议。"
+]);
+
+function currentParticipantInfo() {
+  return {
+    gender: state.participantInfo?.gender || "",
+    age: state.participantInfo?.age || "",
+    education: state.participantInfo?.education || "",
+    major: state.participantInfo?.major || "",
+    phone: state.participantInfo?.phone || "",
+    idCard: state.participantInfo?.idCard || ""
+  };
+}
+
+function validateParticipantInfo(participantId, info) {
+  if (!participantId) return "请填写被试编号。";
+  if (!info.gender || !info.age || !info.education || !info.major || !info.phone || !info.idCard) {
+    return "请完整填写被试信息。";
+  }
+  const age = Number(info.age);
+  if (!Number.isInteger(age) || age < 10 || age > 100) return "请填写有效年龄。";
+  if (!/^1[3-9]\d{9}$/.test(info.phone)) return "请填写有效的11位手机号。";
+  if (!/^\d{17}[\dXx]$/.test(info.idCard)) return "请填写有效的18位身份证号。";
+  return "";
+}
+
 function renderShell(content) {
   const total = state.steps.length || 1;
   const progress = state.steps.length ? Math.round((state.currentStep / (total - 1)) * 100) : 0;
@@ -195,8 +248,7 @@ function renderShell(content) {
         <div class="brand">
           <div class="brand-mark">AI</div>
           <div>
-            <strong>角色标签实验</strong>
-            <small>法律决策辅助任务</small>
+            <strong>人机协作实验</strong>
           </div>
         </div>
         <ol class="step-list">${navItems || "<li class='active'><span>1</span>开始</li>"}</ol>
@@ -204,8 +256,7 @@ function renderShell(content) {
       <main class="workspace">
         <header class="topbar">
           <div>
-            <span class="eyebrow">法律决策辅助任务</span>
-            <h1>法律判断协作平台</h1>
+            <h1>人机协作平台</h1>
           </div>
           <div class="top-actions">
             <span class="pill">被试：${state.participantId || "未开始"}</span>
@@ -221,26 +272,63 @@ function renderShell(content) {
 }
 
 function renderStart() {
+  const participantInfo = currentParticipantInfo();
   renderShell(`
     <section class="panel start-panel">
       <div class="section-label">Start</div>
-      <h2>实验控制台</h2>
-      <p class="muted">请输入被试编号，并由主试选择AI标签顺序。题目按固定顺序呈现，每种AI连续完成两道选择题和一道论述题。</p>
+      <h2>实验准备</h2>
+      <p class="muted">请先填写被试编号与被试信息，并由主试选择AI标签顺序。</p>
       <form id="startForm" class="form-grid">
-        <label>
-          被试编号
-          <input class="text-input" name="participantId" value="${state.participantId}" placeholder="例如 P001" required>
-        </label>
-        <label>
-          AI分配方案
-          <select class="text-input" name="scheduleId">
-            ${schedules.map((item) => `<option value="${item.id}" ${item.id === state.scheduleId ? "selected" : ""}>${item.label}</option>`).join("")}
-          </select>
-        </label>
+        <fieldset class="form-section">
+          <legend>被试编号</legend>
+          <label>
+            被试编号
+            <input class="text-input" name="participantId" value="${state.participantId}" placeholder="例如 P001" required>
+          </label>
+        </fieldset>
+        <fieldset class="form-section participant-grid">
+          <legend>被试信息</legend>
+          <label>
+            性别
+            <select class="text-input" name="gender" required>
+              <option value="">请选择</option>
+              ${["男", "女", "其他"].map((value) => `<option value="${value}" ${value === participantInfo.gender ? "selected" : ""}>${value}</option>`).join("")}
+            </select>
+          </label>
+          <label>
+            年龄
+            <input class="text-input" name="age" type="number" min="10" max="100" value="${participantInfo.age}" placeholder="例如 20" required>
+          </label>
+          <label>
+            学历
+            <input class="text-input" name="education" value="${participantInfo.education}" placeholder="例如 本科" required>
+          </label>
+          <label>
+            专业
+            <input class="text-input" name="major" value="${participantInfo.major}" placeholder="例如 心理学" required>
+          </label>
+          <label>
+            手机号
+            <input class="text-input" name="phone" inputmode="tel" value="${participantInfo.phone}" placeholder="11位手机号" required>
+          </label>
+          <label>
+            身份证
+            <input class="text-input" name="idCard" value="${participantInfo.idCard}" placeholder="18位身份证号" required>
+          </label>
+        </fieldset>
+        <fieldset class="form-section">
+          <legend>主试选择AI顺序</legend>
+          <label>
+            AI分配方案
+            <select class="text-input" name="scheduleId">
+              ${schedules.map((item) => `<option value="${item.id}" ${item.id === state.scheduleId ? "selected" : ""}>${item.label}</option>`).join("")}
+            </select>
+          </label>
+        </fieldset>
         <button class="primary" type="submit">开始实验</button>
       </form>
       <div class="info-grid">
-        <div><strong>流程</strong><span>问卷 -> 法律任务 -> 交互评价 -> 结束问卷</span></div>
+        <div><strong>流程</strong><span>问卷 -> 法律任务 -> 人力资源任务 -> 交互评价 -> 结束问卷</span></div>
         <div><strong>任务</strong><span>请根据材料作答，并参考AI提供的信息</span></div>
         <div><strong>保存</strong><span>完成后请联系主试保存本次数据</span></div>
       </div>
@@ -250,7 +338,22 @@ function renderStart() {
   document.querySelector("#startForm").addEventListener("submit", (event) => {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-    state.participantId = form.get("participantId").trim();
+    const participantId = form.get("participantId").trim();
+    const participantInfo = {
+      gender: form.get("gender").trim(),
+      age: form.get("age").trim(),
+      education: form.get("education").trim(),
+      major: form.get("major").trim(),
+      phone: form.get("phone").trim(),
+      idCard: form.get("idCard").trim().toUpperCase()
+    };
+    const validationError = validateParticipantInfo(participantId, participantInfo);
+    if (validationError) {
+      alert(validationError);
+      return;
+    }
+    state.participantId = participantId;
+    state.participantInfo = participantInfo;
     state.scheduleId = form.get("scheduleId");
     state.startedAt = new Date().toISOString();
     state.steps = buildSteps(schedule());
@@ -259,6 +362,67 @@ function renderStart() {
     saveState();
     render();
   });
+}
+
+function renderInstruction(step) {
+  const instruction = step.instructionId === "stage"
+    ? stageInstructions[step.roleId]
+    : experimentStartInstruction;
+
+  renderShell(`
+    <section class="panel instruction-panel">
+      <div class="section-label">${step.instructionId === "stage" ? roles[step.roleId].name : "Instruction"}</div>
+      <h2>${instruction.title}</h2>
+      <div class="instruction-content">
+        ${instruction.paragraphs.map((paragraph) => `<p class="${indentedInstructionParagraphs.has(paragraph) ? "indent" : ""}">${paragraph}</p>`).join("")}
+      </div>
+      <button class="primary" id="instructionNext" type="button">我已理解，继续</button>
+    </section>
+  `);
+
+  document.querySelector("#instructionNext").addEventListener("click", goNext);
+}
+
+function likertMarkup(scale, itemNo, name, saved, ariaLabel) {
+  return `
+    <div class="likert" role="radiogroup" aria-label="${ariaLabel}">
+      ${Array.from({ length: scale.max - scale.min + 1 }, (_, offset) => scale.min + offset).map((value) => `
+        <label title="${value}">
+          <input type="radio" name="${name}" value="${value}" ${Number(saved) === value ? "checked" : ""}>
+          <span>${value}</span>
+        </label>
+      `).join("")}
+    </div>
+  `;
+}
+
+function scaleRowMarkup(scale, item, itemNo, name, saved) {
+  const left = Array.isArray(item) ? item[0] : item;
+  const right = Array.isArray(item) ? item[1] : "";
+
+  if (scale.semantic && right) {
+    return `
+      <div class="scale-row semantic-row">
+        <div class="semantic-term semantic-left">
+          <span>${itemNo}.</span>
+          <strong>${left}</strong>
+        </div>
+        ${likertMarkup(scale, itemNo, name, saved, `${left} 到 ${right}`)}
+        <strong class="semantic-term semantic-right">${right}</strong>
+      </div>
+    `;
+  }
+
+  return `
+    <div class="scale-row">
+      <div class="scale-item">
+        <span>${itemNo}.</span>
+        <strong>${left}</strong>
+        ${right ? `<em>${right}</em>` : ""}
+      </div>
+      ${likertMarkup(scale, itemNo, name, saved, left)}
+    </div>
+  `;
 }
 
 function renderScale(step) {
@@ -274,25 +438,7 @@ function renderScale(step) {
       <form id="scaleForm" class="scale-form">
         ${scale.items.map((item, index) => {
           const itemNo = index + 1;
-          const left = Array.isArray(item) ? item[0] : item;
-          const right = Array.isArray(item) ? item[1] : "";
-          return `
-            <div class="scale-row">
-              <div class="scale-item">
-                <span>${itemNo}.</span>
-                <strong>${left}</strong>
-                ${right ? `<em>${right}</em>` : ""}
-              </div>
-              <div class="likert" role="radiogroup" aria-label="${left}">
-                ${Array.from({ length: scale.max - scale.min + 1 }, (_, offset) => scale.min + offset).map((value) => `
-                  <label title="${value}">
-                    <input type="radio" name="item_${itemNo}" value="${value}" ${Number(responses[itemNo]) === value ? "checked" : ""}>
-                    <span>${value}</span>
-                  </label>
-                `).join("")}
-              </div>
-            </div>
-          `;
+          return scaleRowMarkup(scale, item, itemNo, `item_${itemNo}`, responses[itemNo]);
         }).join("")}
         <div class="scale-anchors">
           <span>${scale.min} = ${scale.anchors[0]}</span>
@@ -340,26 +486,8 @@ function renderPostCombined(step) {
             <p class="muted">第${index}部分：${scale.instruction}</p>
             ${scale.items.map((item, itemIndex) => {
               const itemNo = itemIndex + 1;
-              const left = Array.isArray(item) ? item[0] : item;
-              const right = Array.isArray(item) ? item[1] : "";
               const saved = responses[scaleId]?.[itemNo];
-              return `
-                <div class="scale-row">
-                  <div class="scale-item">
-                    <span>${itemNo}.</span>
-                    <strong>${left}</strong>
-                    ${right ? `<em>${right}</em>` : ""}
-                  </div>
-                  <div class="likert" role="radiogroup" aria-label="${left}">
-                    ${Array.from({ length: scale.max - scale.min + 1 }, (_, offset) => scale.min + offset).map((value) => `
-                      <label title="${value}">
-                        <input type="radio" name="${scaleId}_${itemNo}" value="${value}" ${Number(saved) === value ? "checked" : ""}>
-                        <span>${value}</span>
-                      </label>
-                    `).join("")}
-                  </div>
-                </div>
-              `;
+              return scaleRowMarkup(scale, item, itemNo, `${scaleId}_${itemNo}`, saved);
             }).join("")}
             <div class="scale-anchors">
               <span>${scale.min} = ${scale.anchors[0]}</span>
@@ -389,6 +517,21 @@ function renderPostCombined(step) {
     saveState();
     goNext();
   });
+}
+
+function taskTypeHint(question) {
+  if (question.type === "essay") return "（简答）";
+  return question.multiple ? "（多选）" : "（单选）";
+}
+
+function cleanStem(stem) {
+  return String(stem || "")
+    .replace(/（多选）/g, "")
+    .replace(/\(多选\)/g, "")
+    .replace(/（单选）/g, "")
+    .replace(/\(单选\)/g, "")
+    .replace(/（简答）/g, "")
+    .replace(/\(简答\)/g, "");
 }
 
 function renderTask(step) {
@@ -431,7 +574,7 @@ function renderTask(step) {
     <section class="task-layout">
       <article class="panel task-main">
         <div class="section-label">${role.name}</div>
-        <p class="stem">${question.multiple ? `<strong class="multi-hint">（多选）</strong>` : ""}${question.stem.replace(/（多选）/g, "").replace(/\(多选\)/g, "")}</p>
+        <p class="stem"><strong class="multi-hint">${taskTypeHint(question)}</strong>${cleanStem(question.stem)}</p>
         <div class="law-box">
           <strong>相关法条</strong>
           ${question.law.map((line) => `<p>${line}</p>`).join("")}
@@ -496,7 +639,7 @@ function renderEssayTask(step, question, role, record, key) {
     <section class="task-layout">
       <article class="panel task-main">
         <div class="section-label">${role.name}</div>
-        <p class="stem">${question.stem}</p>
+        <p class="stem"><strong class="multi-hint">${taskTypeHint(question)}</strong>${cleanStem(question.stem)}</p>
         <form id="essayForm">
           <label class="essay-label">
             最终作答
@@ -509,7 +652,6 @@ function renderEssayTask(step, question, role, record, key) {
         <div class="role-profile">
           <span class="role-badge">${role.badge}</span>
           <h3>${role.name}</h3>
-          <p>${role.intro}</p>
         </div>
         <div class="ai-card ${role.id}">
           <div class="ai-warning">${role.warning}</div>
@@ -659,6 +801,7 @@ function scoreBigFive(responses) {
 async function saveSessionToServer() {
   const payload = {
     participantId: state.participantId,
+    participantInfo: currentParticipantInfo(),
     scheduleId: state.scheduleId,
     startedAt: state.startedAt,
     completedAt: new Date().toISOString(),
@@ -715,6 +858,7 @@ function render() {
   const step = currentStep();
   if (!step) return renderStart();
   if (step.type === "task") return renderTask(step);
+  if (step.type === "instruction") return renderInstruction(step);
   if (step.type === "postCombined") return renderPostCombined(step);
   if (step.type === "scale") return renderScale(step);
   if (step.type === "complete") return renderComplete();
