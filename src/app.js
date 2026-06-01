@@ -666,7 +666,14 @@ function renderEssayTask(step, question, role, record, key) {
     </section>
   `);
 
-  document.querySelector("#essayForm").addEventListener("submit", (event) => {
+  const essayForm = document.querySelector("#essayForm");
+  essayForm.finalTextAnswer.addEventListener("input", (event) => {
+    record.finalTextAnswer = event.currentTarget.value;
+    state.taskRecords[key] = record;
+    saveState();
+  });
+
+  essayForm.addEventListener("submit", (event) => {
     event.preventDefault();
     const finalTextAnswer = event.currentTarget.finalTextAnswer.value.trim();
     if (!finalTextAnswer) return alert("请填写最终答案。");
